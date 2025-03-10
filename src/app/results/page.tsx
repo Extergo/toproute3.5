@@ -1,90 +1,84 @@
-// src/app/results/page.tsx
+// src/app/form/page.tsx
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import {
-  recommendVehicles,
-  RecommendationResult,
-} from "../../utils/recommendVehicles";
 
-export default function ResultsPage() {
-  const params = useSearchParams();
-  const [result, setResult] = useState<RecommendationResult | null>(null);
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"primary" | "runnerUp">("primary");
+// Use dynamic import with no SSR for Map component
+const Map = dynamic(() => import("../../components/Map"), { ssr: false });
 
-  useEffect(() => {
+export default function FormPage() {
+  const router = useRouter();
+
+  // User prefs with more detailed options
+  const [minSeats, setMinSeats] = useState<number>(5);
+  const [hasKids, setHasKids] = useState<boolean>(false);
+  const [trunkPreference, setTrunkPreference] = useState<boolean>(false);
+  const [preferredType, setPreferredType] = useState<string>("any");
+
+  // Loading state
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // Store the 3 locations
+  const [house, setHouse] = useState<{ lat: number; lng: number } | null>(null);
+  const [workplace, setWorkplace] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const [holiday, setHoliday] = useState<{ lat: number; lng: number } | null>(
+    null
+  );
+
+  const [allLocationsSet, setAllLocationsSet] = useState<boolean>(false);
+
+  const [formMessage, setFormMessage] = useState<string | null>(null);
+
+  const handleLocationsSelect = (locations: {
+    house: { lat: number; lng: number };
+    workplace: { lat: number; lng: number };
+    holiday: { lat: number; lng: number };
+  }) => {
+    setHouse(locations.house);
+    setWorkplace(locations.workplace);
+    setHoliday(locations.holiday);
+    setAllLocationsSet(true);
+  };
+
+  const handleSubmit = () => {
+    setFormMessage(null);
+
+    if (!house || !workplace || !holiday) {
+      setFormMessage(
+        "Please set Home, Workplace, and Holiday points on the map"
+      );
+      return;
+    }
+
     setIsLoading(true);
 
+    // Build query string for results
     try {
-      const houseLat = parseFloat(params.get("houseLat") || "");
-      const houseLng = parseFloat(params.get("houseLng") || "");
-      const workplaceLat = parseFloat(params.get("workplaceLat") || "");
-      const workplaceLng = parseFloat(params.get("workplaceLng") || "");
-      const holidayLat = parseFloat(params.get("holidayLat") || "");
-      const holidayLng = parseFloat(params.get("holidayLng") || "");
-      const minSeats = parseInt(params.get("minSeats") || "5", 10);
-      const hasKids = params.get("hasKids") === "1";
-      const trunk = params.get("trunk") === "1";
-      const preferredType = params.get("preferredType") || "any";
-
-      if (
-        isNaN(houseLat) ||
-        isNaN(houseLng) ||
-        isNaN(workplaceLat) ||
-        isNaN(workplaceLng) ||
-        isNaN(holidayLat) ||
-        isNaN(holidayLng)
-      ) {
-        setError(
-          "Missing or invalid location data. Please go back and try again."
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      const recommendation = recommendVehicles({
-        house: { lat: houseLat, lng: houseLng },
-        workplace: { lat: workplaceLat, lng: workplaceLng },
-        holiday: { lat: holidayLat, lng: holidayLng },
-        minSeats,
-        habits: {
-          hasKids,
-          trunkPreference: trunk,
-        },
-        preferredType: preferredType, // Pass the preferred vehicle type
+      const query = new URLSearchParams({
+        houseLat: house.lat.toString(),
+        houseLng: house.lng.toString(),
+        workplaceLat: workplace.lat.toString(),
+        workplaceLng: workplace.lng.toString(),
+        holidayLat: holiday.lat.toString(),
+        holidayLng: holiday.lng.toString(),
+        minSeats: minSeats.toString(),
+        hasKids: hasKids ? "1" : "0",
+        trunk: trunkPreference ? "1" : "0",
+        preferredType: preferredType,
       });
 
-      setError("");
-      setResult(recommendation);
-    } catch (err: any) {
-      setError(err.message || "Unknown error occurred");
-      setResult(null);
-    } finally {
+      router.push(`/results?${query.toString()}`);
+    } catch (err) {
+      setFormMessage(
+        "An error occurred while submitting your preferences. Please try again."
+      );
       setIsLoading(false);
-    }
-  }, [params]);
-
-  // Function to determine car type icon
-  const getCarTypeIcon = (type: string) => {
-    switch (type) {
-      case "electric":
-        return "⚡";
-      case "hybrid":
-        return "🔋";
-      case "suv":
-        return "🚙";
-      case "minivan":
-        return "🚐";
-      case "sedan":
-        return "🚗";
-      case "compact":
-        return "🏎️";
-      default:
-        return "🚗";
     }
   };
 
@@ -92,478 +86,202 @@ export default function ResultsPage() {
     <main className="min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-100 to-green-100 p-6">
       <div className="max-w-4xl w-full bg-white rounded-lg shadow-lg p-8">
         <Link
-          href="/form"
+          href="/"
           className="inline-block text-blue-600 hover:text-blue-800 mb-6"
         >
-          &larr; Back to Form
+          &larr; Back to Home
         </Link>
 
-        <h1 className="text-3xl font-bold text-center mb-4">
-          Your Vehicle Recommendations
+        <h1 className="text-3xl font-bold text-center mb-6">
+          Find Your Ideal Vehicle
         </h1>
 
-        {isLoading && (
-          <div className="flex justify-center items-center h-64">
-            <div className="text-center">
-              <div className="inline-block animate-spin h-12 w-12 border-4 border-blue-500 border-t-transparent rounded-full mb-4"></div>
-              <p className="text-gray-600">
-                Analyzing your needs and finding the perfect vehicle...
+        <p className="text-gray-600 text-center mb-8">
+          Tell us about your needs and locations, and we&apos;ll recommend the
+          perfect vehicle for you.
+        </p>
+
+        {formMessage && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded text-red-600">
+            {formMessage}
+          </div>
+        )}
+
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold mb-4">1. Your Preferences</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-gray-700 mb-2 font-medium">
+                Minimum Seats
+              </label>
+              <select
+                value={minSeats}
+                onChange={(e) => setMinSeats(parseInt(e.target.value, 10))}
+                className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-300 focus:border-blue-500 outline-none transition-all"
+              >
+                {[2, 3, 4, 5, 6, 7, 8].map((num) => (
+                  <option key={num} value={num}>
+                    {num} seats
+                  </option>
+                ))}
+              </select>
+              <p className="text-sm text-gray-500 mt-1">
+                Select the minimum number of seats you need
               </p>
             </div>
-          </div>
-        )}
 
-        {error && !isLoading && (
-          <div className="text-center p-6 bg-red-50 border border-red-200 rounded-lg mb-6">
-            <p className="text-red-600 font-semibold mb-4">{error}</p>
-            <Link
-              href="/form"
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              Go Back and Try Again
-            </Link>
-          </div>
-        )}
+            <div>
+              <label className="block text-gray-700 mb-2 font-medium">
+                Vehicle Type Preference
+              </label>
+              <select
+                value={preferredType}
+                onChange={(e) => setPreferredType(e.target.value)}
+                className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-300 focus:border-blue-500 outline-none transition-all"
+              >
+                <option value="any">Any Type</option>
+                <option value="electric">Electric</option>
+                <option value="hybrid">Hybrid</option>
+                <option value="suv">SUV</option>
+                <option value="sedan">Sedan</option>
+                <option value="minivan">Minivan</option>
+                <option value="compact">Compact</option>
+              </select>
+              <p className="text-sm text-gray-500 mt-1">
+                Optional: Select your preferred vehicle type
+              </p>
+            </div>
 
-        {result && !isLoading && (
-          <>
-            <div className="bg-gray-50 p-6 rounded-lg mb-8">
-              <h2 className="text-xl font-semibold mb-3">Analysis Summary</h2>
-              <p className="text-gray-700 leading-relaxed">{result.summary}</p>
-
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                <div className="bg-white p-4 rounded-lg shadow-sm">
-                  <p className="text-sm text-gray-500 mb-1">Daily Commute</p>
-                  <p className="text-lg font-semibold">
-                    {result.metrics.commuteDistance.toFixed(1)} km
-                  </p>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow-sm">
-                  <p className="text-sm text-gray-500 mb-1">Holiday Distance</p>
-                  <p className="text-lg font-semibold">
-                    {result.metrics.holidayDistance.toFixed(1)} km
-                  </p>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow-sm">
-                  <p className="text-sm text-gray-500 mb-1">
-                    Environmental Rating
-                  </p>
-                  <p className="text-lg">
-                    <span className="text-yellow-500">
-                      {"\u2605".repeat(result.carbonRating)}
-                    </span>
-                    <span className="text-gray-300">
-                      {"\u2605".repeat(5 - result.carbonRating)}
-                    </span>
-                  </p>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="hasKids"
+                checked={hasKids}
+                onChange={(e) => setHasKids(e.target.checked)}
+                className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="hasKids" className="ml-2 block text-gray-700">
+                I have children
+              </label>
+              <div className="ml-2 group relative">
+                <span className="text-gray-400 cursor-help">ⓘ</span>
+                <div className="hidden group-hover:block absolute left-0 bottom-full mb-2 p-2 bg-gray-800 text-white text-xs rounded shadow-lg w-48">
+                  We&apos;ll prioritize vehicles with higher safety ratings and
+                  family-friendly features
                 </div>
               </div>
             </div>
 
-            {/* Car recommendation tabs */}
-            <div className="mb-6">
-              <div className="flex border-b">
-                <button
-                  className={`flex-1 py-3 font-medium text-center ${
-                    activeTab === "primary"
-                      ? "text-blue-600 border-b-2 border-blue-600"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                  onClick={() => setActiveTab("primary")}
-                >
-                  Primary Recommendation
-                </button>
-                <button
-                  className={`flex-1 py-3 font-medium text-center ${
-                    activeTab === "runnerUp"
-                      ? "text-blue-600 border-b-2 border-blue-600"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                  onClick={() => setActiveTab("runnerUp")}
-                >
-                  Alternative Option
-                </button>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="trunkSpace"
+                checked={trunkPreference}
+                onChange={(e) => setTrunkPreference(e.target.checked)}
+                className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="trunkSpace" className="ml-2 block text-gray-700">
+                I need significant trunk space
+              </label>
+              <div className="ml-2 group relative">
+                <span className="text-gray-400 cursor-help">ⓘ</span>
+                <div className="hidden group-hover:block absolute left-0 bottom-full mb-2 p-2 bg-gray-800 text-white text-xs rounded shadow-lg w-48">
+                  We&apos;ll prioritize vehicles with larger cargo capacity
+                </div>
               </div>
+            </div>
+          </div>
+        </div>
 
-              {/* Primary car details */}
-              <div
-                className={`mt-6 ${
-                  activeTab === "primary" ? "block" : "hidden"
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold mb-4">2. Your Locations</h2>
+          <p className="mb-4 text-gray-600">
+            Click on the map to set your home, workplace, and holiday
+            destination in that order. We&apos;ll use these locations to
+            calculate your typical commute and travel needs.
+          </p>
+
+          <div className="bg-gray-50 p-4 rounded mb-4">
+            <ul className="flex flex-col sm:flex-row sm:justify-between text-sm">
+              <li
+                className={`flex items-center mb-2 sm:mb-0 ${
+                  house ? "text-green-600" : "text-gray-500"
                 }`}
               >
-                <div className="bg-white border rounded-lg overflow-hidden">
-                  <div className="bg-blue-50 px-6 py-4 border-b">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-xl font-bold">
-                        {getCarTypeIcon(result.primary.type)}{" "}
-                        {result.primary.name}
-                      </h3>
-                      <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                        {result.primary.type.charAt(0).toUpperCase() +
-                          result.primary.type.slice(1)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <h4 className="text-lg font-semibold mb-4">
-                          Specifications
-                        </h4>
-                        <ul className="space-y-3">
-                          <li className="flex justify-between">
-                            <span className="text-gray-600">Range:</span>
-                            <span className="font-medium">
-                              {result.primary.range} km
-                            </span>
-                          </li>
-                          <li className="flex justify-between">
-                            <span className="text-gray-600">Seats:</span>
-                            <span className="font-medium">
-                              {result.primary.seats}
-                            </span>
-                          </li>
-                          <li className="flex justify-between">
-                            <span className="text-gray-600">Trunk Space:</span>
-                            <span className="font-medium">
-                              {result.primary.trunk} liters
-                            </span>
-                          </li>
-                          <li className="flex justify-between">
-                            <span className="text-gray-600">Efficiency:</span>
-                            <span className="font-medium">
-                              {result.primary.type === "electric"
-                                ? `${result.primary.efficiency} km/kWh`
-                                : `${result.primary.efficiency} km/L`}
-                            </span>
-                          </li>
-                        </ul>
-                      </div>
-
-                      <div>
-                        <h4 className="text-lg font-semibold mb-4">
-                          Cost Analysis
-                        </h4>
-                        <ul className="space-y-3">
-                          <li className="flex justify-between">
-                            <span className="text-gray-600">Base Price:</span>
-                            <span className="font-medium">
-                              ${result.primary.price},000
-                            </span>
-                          </li>
-                          <li className="flex justify-between">
-                            <span className="text-gray-600">
-                              Monthly Commute Cost:
-                            </span>
-                            <span className="font-medium">
-                              ${(result.priceBreakdown.primary / 2).toFixed(2)}
-                            </span>
-                          </li>
-                          <li className="flex justify-between">
-                            <span className="text-gray-600">
-                              Family Friendly Rating:
-                            </span>
-                            <span className="font-medium">
-                              {result.primary.familyFriendly}/10
-                            </span>
-                          </li>
-                          <li className="flex justify-between">
-                            <span className="text-gray-600">
-                              Environmental Rating:
-                            </span>
-                            <span className="text-yellow-500 font-medium">
-                              {"\u2605".repeat(result.carbonRating)}
-                              <span className="text-gray-300">
-                                {"\u2605".repeat(5 - result.carbonRating)}
-                              </span>
-                            </span>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-
-                    <div className="mt-6">
-                      <h4 className="text-lg font-semibold mb-2">
-                        Terrain Performance
-                      </h4>
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="bg-gray-50 p-3 rounded text-center">
-                          <div className="text-xl font-bold">
-                            {result.primary.terrain.city}/10
-                          </div>
-                          <div className="text-sm text-gray-500">City</div>
-                        </div>
-                        <div className="bg-gray-50 p-3 rounded text-center">
-                          <div className="text-xl font-bold">
-                            {result.primary.terrain.highway}/10
-                          </div>
-                          <div className="text-sm text-gray-500">Highway</div>
-                        </div>
-                        <div className="bg-gray-50 p-3 rounded text-center">
-                          <div className="text-xl font-bold">
-                            {result.primary.terrain.offroad}/10
-                          </div>
-                          <div className="text-sm text-gray-500">Off-road</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Runner-up car details */}
-              <div
-                className={`mt-6 ${
-                  activeTab === "runnerUp" ? "block" : "hidden"
+                <span className="w-5 h-5 inline-block bg-blue-500 text-white rounded-full text-xs flex items-center justify-center mr-2">
+                  1
+                </span>
+                Home: {house ? "Set ✓" : "Click on map"}
+              </li>
+              <li
+                className={`flex items-center mb-2 sm:mb-0 ${
+                  workplace ? "text-green-600" : "text-gray-500"
                 }`}
               >
-                <div className="bg-white border rounded-lg overflow-hidden">
-                  <div className="bg-green-50 px-6 py-4 border-b">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-xl font-bold">
-                        {getCarTypeIcon(result.runnerUp.type)}{" "}
-                        {result.runnerUp.name}
-                      </h3>
-                      <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                        {result.runnerUp.type.charAt(0).toUpperCase() +
-                          result.runnerUp.type.slice(1)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <h4 className="text-lg font-semibold mb-4">
-                          Specifications
-                        </h4>
-                        <ul className="space-y-3">
-                          <li className="flex justify-between">
-                            <span className="text-gray-600">Range:</span>
-                            <span className="font-medium">
-                              {result.runnerUp.range} km
-                            </span>
-                          </li>
-                          <li className="flex justify-between">
-                            <span className="text-gray-600">Seats:</span>
-                            <span className="font-medium">
-                              {result.runnerUp.seats}
-                            </span>
-                          </li>
-                          <li className="flex justify-between">
-                            <span className="text-gray-600">Trunk Space:</span>
-                            <span className="font-medium">
-                              {result.runnerUp.trunk} liters
-                            </span>
-                          </li>
-                          <li className="flex justify-between">
-                            <span className="text-gray-600">Efficiency:</span>
-                            <span className="font-medium">
-                              {result.runnerUp.type === "electric"
-                                ? `${result.runnerUp.efficiency} km/kWh`
-                                : `${result.runnerUp.efficiency} km/L`}
-                            </span>
-                          </li>
-                        </ul>
-                      </div>
-
-                      <div>
-                        <h4 className="text-lg font-semibold mb-4">
-                          Cost Analysis
-                        </h4>
-                        <ul className="space-y-3">
-                          <li className="flex justify-between">
-                            <span className="text-gray-600">Base Price:</span>
-                            <span className="font-medium">
-                              ${result.runnerUp.price},000
-                            </span>
-                          </li>
-                          <li className="flex justify-between">
-                            <span className="text-gray-600">
-                              Monthly Commute Cost:
-                            </span>
-                            <span className="font-medium">
-                              ${(result.priceBreakdown.runnerUp / 2).toFixed(2)}
-                            </span>
-                          </li>
-                          <li className="flex justify-between">
-                            <span className="text-gray-600">
-                              Family Friendly Rating:
-                            </span>
-                            <span className="font-medium">
-                              {result.runnerUp.familyFriendly}/10
-                            </span>
-                          </li>
-                          <li className="flex justify-between">
-                            <span className="text-gray-600">
-                              Environmental Rating:
-                            </span>
-                            <span className="text-yellow-500 font-medium">
-                              {result.runnerUp.type === "electric"
-                                ? "★★★★★"
-                                : result.runnerUp.type === "hybrid"
-                                ? "★★★☆☆"
-                                : "★★☆☆☆"}
-                            </span>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-
-                    <div className="mt-6">
-                      <h4 className="text-lg font-semibold mb-2">
-                        Terrain Performance
-                      </h4>
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="bg-gray-50 p-3 rounded text-center">
-                          <div className="text-xl font-bold">
-                            {result.runnerUp.terrain.city}/10
-                          </div>
-                          <div className="text-sm text-gray-500">City</div>
-                        </div>
-                        <div className="bg-gray-50 p-3 rounded text-center">
-                          <div className="text-xl font-bold">
-                            {result.runnerUp.terrain.highway}/10
-                          </div>
-                          <div className="text-sm text-gray-500">Highway</div>
-                        </div>
-                        <div className="bg-gray-50 p-3 rounded text-center">
-                          <div className="text-xl font-bold">
-                            {result.runnerUp.terrain.offroad}/10
-                          </div>
-                          <div className="text-sm text-gray-500">Off-road</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Comparison section */}
-            <div className="mt-8">
-              <h2 className="text-xl font-semibold mb-4">Vehicle Comparison</h2>
-              <div className="overflow-x-auto">
-                <table className="min-w-full bg-white border">
-                  <thead>
-                    <tr>
-                      <th className="py-2 px-4 border-b text-left bg-gray-50">
-                        Feature
-                      </th>
-                      <th className="py-2 px-4 border-b text-left bg-blue-50">
-                        {result.primary.name}
-                      </th>
-                      <th className="py-2 px-4 border-b text-left bg-green-50">
-                        {result.runnerUp.name}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="py-2 px-4 border-b font-medium">Type</td>
-                      <td className="py-2 px-4 border-b">
-                        {result.primary.type}
-                      </td>
-                      <td className="py-2 px-4 border-b">
-                        {result.runnerUp.type}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 px-4 border-b font-medium">Price</td>
-                      <td className="py-2 px-4 border-b">
-                        ${result.primary.price},000
-                      </td>
-                      <td className="py-2 px-4 border-b">
-                        ${result.runnerUp.price},000
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 px-4 border-b font-medium">
-                        Operating Cost
-                      </td>
-                      <td className="py-2 px-4 border-b">
-                        ${result.priceBreakdown.primary.toFixed(2)}/month
-                      </td>
-                      <td className="py-2 px-4 border-b">
-                        ${result.priceBreakdown.runnerUp.toFixed(2)}/month
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 px-4 border-b font-medium">Range</td>
-                      <td className="py-2 px-4 border-b">
-                        {result.primary.range} km
-                      </td>
-                      <td className="py-2 px-4 border-b">
-                        {result.runnerUp.range} km
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 px-4 border-b font-medium">
-                        Cargo Space
-                      </td>
-                      <td className="py-2 px-4 border-b">
-                        {result.primary.trunk} L
-                      </td>
-                      <td className="py-2 px-4 border-b">
-                        {result.runnerUp.trunk} L
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 px-4 border-b font-medium">
-                        Family Rating
-                      </td>
-                      <td className="py-2 px-4 border-b">
-                        {result.primary.familyFriendly}/10
-                      </td>
-                      <td className="py-2 px-4 border-b">
-                        {result.runnerUp.familyFriendly}/10
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 px-4 border-b font-medium">
-                        City Performance
-                      </td>
-                      <td className="py-2 px-4 border-b">
-                        {result.primary.terrain.city}/10
-                      </td>
-                      <td className="py-2 px-4 border-b">
-                        {result.runnerUp.terrain.city}/10
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 px-4 border-b font-medium">
-                        Highway Performance
-                      </td>
-                      <td className="py-2 px-4 border-b">
-                        {result.primary.terrain.highway}/10
-                      </td>
-                      <td className="py-2 px-4 border-b">
-                        {result.runnerUp.terrain.highway}/10
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
-        )}
-
-        <div className="text-center mt-10">
-          <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Link
-              href="/form"
-              className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
-            >
-              Adjust Preferences
-            </Link>
-            <Link
-              href="/"
-              className="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600"
-            >
-              Start Over
-            </Link>
+                <span className="w-5 h-5 inline-block bg-blue-500 text-white rounded-full text-xs flex items-center justify-center mr-2">
+                  2
+                </span>
+                Workplace: {workplace ? "Set ✓" : "Click on map"}
+              </li>
+              <li
+                className={`flex items-center ${
+                  holiday ? "text-green-600" : "text-gray-500"
+                }`}
+              >
+                <span className="w-5 h-5 inline-block bg-blue-500 text-white rounded-full text-xs flex items-center justify-center mr-2">
+                  3
+                </span>
+                Holiday: {holiday ? "Set ✓" : "Click on map"}
+              </li>
+            </ul>
           </div>
+
+          <Map onLocationsSelect={handleLocationsSelect} />
+        </div>
+
+        <div className="text-center mt-8">
+          <button
+            onClick={handleSubmit}
+            disabled={isLoading || !allLocationsSet}
+            className={`px-8 py-3 rounded-md text-white font-medium transition-all ${
+              allLocationsSet
+                ? "bg-blue-600 hover:bg-blue-700"
+                : "bg-gray-400 cursor-not-allowed"
+            }`}
+          >
+            {isLoading ? (
+              <span className="flex items-center justify-center">
+                <svg
+                  className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Processing...
+              </span>
+            ) : (
+              "Get Recommendation"
+            )}
+          </button>
+          <p className="mt-2 text-sm text-gray-500">
+            {allLocationsSet
+              ? "Ready to find your perfect vehicle!"
+              : "Please select all three locations on the map"}
+          </p>
         </div>
       </div>
     </main>

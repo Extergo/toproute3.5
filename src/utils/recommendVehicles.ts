@@ -10,7 +10,7 @@ export interface RecommendationInput {
     hasKids: boolean;
     trunkPreference: boolean;
   };
-  preferredType?: string; // Added parameter for vehicle type preference
+  preferredType?: string;
 }
 
 export interface RecommendationResult {
@@ -21,7 +21,7 @@ export interface RecommendationResult {
     primary: number;
     runnerUp: number;
   };
-  carbonRating: number; // 1 (high combustion) to 5 (low/no combustion)
+  carbonRating: number;
   metrics: {
     commuteDistance: number;
     holidayDistance: number;
@@ -65,13 +65,10 @@ export function recommendVehicles(
   const totalDistance = commuteDistance + holidayDistance;
 
   // Determine terrain types based on the locations and distances
-  // This is a simplified algorithm - in a real app, you might use Google Maps data
   const terrainPreference = {
-    // Daily commute is usually more city/highway
-    city: commuteDistance < 30 ? 0.7 : 0.3, // If short commute, more city driving
-    highway: commuteDistance >= 30 ? 0.7 : 0.3, // If longer commute, more highway
-    // Holiday trips typically involve highway and some off-road
-    offroad: holidayDistance > 200 ? 0.4 : 0.2, // More off-road for longer trips
+    city: commuteDistance < 30 ? 0.7 : 0.3,
+    highway: commuteDistance >= 30 ? 0.7 : 0.3,
+    offroad: holidayDistance > 200 ? 0.4 : 0.2,
   };
 
   // Filter cars by seat requirement at minimum
@@ -99,7 +96,6 @@ export function recommendVehicles(
   const scoredCars = filteredCars.map((car) => {
     let score = 0;
 
-    // Base requirements
     // Range score: how well the car handles the total distance
     const rangeScore = Math.min(car.range / (totalDistance * 1.2), 1) * 10;
 
@@ -205,17 +201,15 @@ export function recommendVehicles(
   if (primary.type === "electric") {
     carbonRating = 5;
   } else if (primary.type === "hybrid") {
-    carbonRating = 3 + (primary.efficiency > 18 ? 1 : 0); // Better hybrid gets higher rating
+    carbonRating = 3 + (primary.efficiency > 18 ? 1 : 0);
   } else if (primary.type === "suv" || primary.type === "minivan") {
-    carbonRating = primary.efficiency > 12 ? 2 : 1; // Efficient SUV/minivan gets slightly better
+    carbonRating = primary.efficiency > 12 ? 2 : 1;
   } else {
-    carbonRating = primary.efficiency > 14 ? 2 : 1; // Efficient sedan/compact gets slightly better
+    carbonRating = primary.efficiency > 14 ? 2 : 1;
   }
 
   // Generate a dynamic summary
   const primaryScore = scoredCars[0].scores;
-  const runnerUpScore =
-    scoredCars.length > 1 ? scoredCars[1].scores : scoredCars[0].scores;
 
   let summary = `Based on your input, your daily commute is ${commuteDistance.toFixed(
     1

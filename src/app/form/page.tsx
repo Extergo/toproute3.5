@@ -33,7 +33,7 @@ export default function FormPage() {
 
   const [allLocationsSet, setAllLocationsSet] = useState<boolean>(false);
 
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formMessage, setFormMessage] = useState<string | null>(null);
 
   const handleLocationsSelect = (locations: {
     house: { lat: number; lng: number };
@@ -47,10 +47,12 @@ export default function FormPage() {
   };
 
   const handleSubmit = () => {
-    setFormError(null);
+    setFormMessage(null);
 
     if (!house || !workplace || !holiday) {
-      setFormError("Please set Home, Workplace, and Holiday points on the map");
+      setFormMessage(
+        "Please set Home, Workplace, and Holiday points on the map"
+      );
       return;
     }
 
@@ -72,8 +74,8 @@ export default function FormPage() {
       });
 
       router.push(`/results?${query.toString()}`);
-    } catch (error) {
-      setFormError(
+    } catch (err) {
+      setFormMessage(
         "An error occurred while submitting your preferences. Please try again."
       );
       setIsLoading(false);
@@ -95,13 +97,13 @@ export default function FormPage() {
         </h1>
 
         <p className="text-gray-600 text-center mb-8">
-          Tell us about your needs and locations, and we'll recommend the
+          Tell us about your needs and locations, and we&apos;ll recommend the
           perfect vehicle for you.
         </p>
 
-        {formError && (
+        {formMessage && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded text-red-600">
-            {formError}
+            {formMessage}
           </div>
         )}
 
@@ -164,7 +166,7 @@ export default function FormPage() {
               <div className="ml-2 group relative">
                 <span className="text-gray-400 cursor-help">ⓘ</span>
                 <div className="hidden group-hover:block absolute left-0 bottom-full mb-2 p-2 bg-gray-800 text-white text-xs rounded shadow-lg w-48">
-                  We'll prioritize vehicles with higher safety ratings and
+                  We&apos;ll prioritize vehicles with higher safety ratings and
                   family-friendly features
                 </div>
               </div>
@@ -184,7 +186,7 @@ export default function FormPage() {
               <div className="ml-2 group relative">
                 <span className="text-gray-400 cursor-help">ⓘ</span>
                 <div className="hidden group-hover:block absolute left-0 bottom-full mb-2 p-2 bg-gray-800 text-white text-xs rounded shadow-lg w-48">
-                  We'll prioritize vehicles with larger cargo capacity
+                  We&apos;ll prioritize vehicles with larger cargo capacity
                 </div>
               </div>
             </div>
@@ -195,8 +197,8 @@ export default function FormPage() {
           <h2 className="text-xl font-semibold mb-4">2. Your Locations</h2>
           <p className="mb-4 text-gray-600">
             Click on the map to set your home, workplace, and holiday
-            destination in that order. We'll use these locations to calculate
-            your typical commute and travel needs.
+            destination in that order. We&apos;ll use these locations to
+            calculate your typical commute and travel needs.
           </p>
 
           <div className="bg-gray-50 p-4 rounded mb-4">

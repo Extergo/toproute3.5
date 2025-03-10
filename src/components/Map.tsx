@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   GoogleMap,
-  LoadScript,
   Marker,
   DirectionsRenderer,
   useJsApiLoader,
@@ -148,7 +147,7 @@ export default function Map({ onLocationsSelect }: MapProps) {
               const request: google.maps.places.PlaceSearchRequest = {
                 location: midpoint,
                 radius: 15000, // 15 km
-                type: "electric_vehicle_charging_station", // single string version
+                type: "electric_vehicle_charging_station",
               };
 
               service.nearbySearch(request, (results, status) => {
