@@ -6,6 +6,7 @@ import {
   Marker,
   DirectionsRenderer,
   useJsApiLoader,
+  Library,
 } from "@react-google-maps/api";
 
 interface Point {
@@ -31,14 +32,8 @@ const center = {
   lng: -122.4194,
 };
 
-// Define libraries outside component to prevent unnecessary re-renders
-const libraries: (
-  | "places"
-  | "drawing"
-  | "geometry"
-  | "localContext"
-  | "visualization"
-)[] = ["places"];
+// Explicitly type the libraries array
+const libraries: Library[] = ["places"];
 
 export default function Map({ onLocationsSelect }: MapProps) {
   const [points, setPoints] = useState<Point[]>([]);
