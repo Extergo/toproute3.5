@@ -1,261 +1,253 @@
-// src/components/Map.tsx
-"use client";
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   GoogleMap,
-  Marker,
   DirectionsRenderer,
   useJsApiLoader,
-  Library,
+  type Libraries,
+  Marker,
 } from "@react-google-maps/api";
 
+// Define interface for point/location
 interface Point {
   lat: number;
   lng: number;
+  name?: string;
 }
 
+// Define map container style
+const containerStyle = {
+  width: "100%",
+  height: "400px",
+};
+
+// Default center (you can change this)
+const defaultCenter = {
+  lat: 40.7128, // New York City coordinates
+  lng: -74.006,
+};
+
+// Define prop types for the Map component
 interface MapProps {
-  onLocationsSelect: (locations: {
+  onLocationsSelect?: (locations: {
     house: Point;
     workplace: Point;
     holiday: Point;
   }) => void;
 }
 
-const containerStyle = {
-  width: "100%",
-  height: "400px",
-};
-
-const center = {
-  lat: 37.7749, // Default center (San Francisco)
-  lng: -122.4194,
-};
-
-// Explicitly type the libraries array
-const libraries: Library[] = ["places"];
-
 export default function Map({ onLocationsSelect }: MapProps) {
-  const [points, setPoints] = useState<Point[]>([]);
-  const [directions, setDirections] =
-    useState<google.maps.DirectionsResult | null>(null);
-  const [evStations, setEvStations] = useState<
-    google.maps.places.PlaceResult[]
-  >([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // Configure libraries you want to use
+  const libraries: Libraries = ["places", "geometry"];
 
-  // Use a ref to store the map instance
-  const mapRef = useRef<google.maps.Map | null>(null);
-
-  // Use useJsApiLoader for more reliable loading
-  const { isLoaded, loadError: apiLoadError } = useJsApiLoader({
+  // Load Google Maps API
+  const { isLoaded } = useJsApiLoader({
+    id: "google-map-script",
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
     libraries,
   });
 
+  // State for map and directions
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [directionsResponse, setDirectionsResponse] =
+    useState<google.maps.DirectionsResult | null>(null);
+  const [distance, setDistance] = useState("");
+  const [duration, setDuration] = useState("");
+
+  // State for location markers
+  const [houseMarker, setHouseMarker] = useState<Point | null>(null);
+  const [workplaceMarker, setWorkplaceMarker] = useState<Point | null>(null);
+  const [holidayMarker, setHolidayMarker] = useState<Point | null>(null);
+
+  // Refs for origin and destination inputs
+  const originRef = useRef<HTMLInputElement>(null);
+  const destiantionRef = useRef<HTMLInputElement>(null);
+
+  // Trigger location selection callback when all markers are set
   useEffect(() => {
-    if (apiLoadError) {
-      setLoadError(
-        "Failed to load Google Maps API. Please check your internet connection and try again."
-      );
-      console.error("Google Maps API load error:", apiLoadError);
+    if (houseMarker && workplaceMarker && holidayMarker && onLocationsSelect) {
+      onLocationsSelect({
+        house: houseMarker,
+        workplace: workplaceMarker,
+        holiday: holidayMarker,
+      });
     }
-  }, [apiLoadError]);
+  }, [houseMarker, workplaceMarker, holidayMarker, onLocationsSelect]);
 
-  // Called when the map finishes loading
-  const onMapLoad = useCallback((map: google.maps.Map) => {
-    mapRef.current = map;
-  }, []);
-
-  // Handle user clicks to set up to 3 points
-  const handleMapClick = useCallback(
-    (event: google.maps.MapMouseEvent) => {
-      if (!event.latLng) return;
-      const newPoint: Point = {
-        lat: event.latLng.lat(),
-        lng: event.latLng.lng(),
-      };
-
-      if (points.length < 3) {
-        const updatedPoints = [...points, newPoint];
-        setPoints(updatedPoints);
-
-        // Once we have 3 points, pass them to the parent
-        if (updatedPoints.length === 3) {
-          onLocationsSelect({
-            house: updatedPoints[0],
-            workplace: updatedPoints[1],
-            holiday: updatedPoints[2],
-          });
-        }
-      }
-    },
-    [points, onLocationsSelect]
-  );
-
-  // Whenever 'points' changes, attempt route + EV station search
-  useEffect(() => {
-    // We only do route + station search if we have at least 2 points (House, Work)
-    if (points.length < 2 || !isLoaded) {
-      setDirections(null);
-      setEvStations([]);
+  // Calculate route function
+  const calculateRoute = async () => {
+    if (!originRef.current?.value || !destiantionRef.current?.value) {
       return;
     }
 
-    // Ensure the map is loaded
-    if (!mapRef.current) {
-      console.warn("Map not loaded yet; skipping directions & station search.");
-      return;
-    }
-
-    // Directions from House -> Work
     const directionsService = new google.maps.DirectionsService();
-    directionsService.route(
-      {
-        origin: points[0],
-        destination: points[1],
-        travelMode: google.maps.TravelMode.DRIVING,
-      },
-      (result, status) => {
-        if (status === "OK" && result) {
-          setDirections(result);
+    const results = await directionsService.route({
+      origin: originRef.current.value,
+      destination: destiantionRef.current.value,
+      travelMode: google.maps.TravelMode.DRIVING,
+    });
 
-          // Find midpoint of the first leg, then PlacesService for EV stations
-          if (result.routes[0]?.legs.length > 0) {
-            const leg = result.routes[0].legs[0];
-            const midLat =
-              (leg.start_location.lat() + leg.end_location.lat()) / 2;
-            const midLng =
-              (leg.start_location.lng() + leg.end_location.lng()) / 2;
-            const midpoint = new google.maps.LatLng(midLat, midLng);
+    setDirectionsResponse(results);
 
-            // Null check for the map again
-            if (!mapRef.current) {
-              console.error("Map ref disappeared. Aborting station search.");
-              return;
-            }
+    // Set distance and duration
+    if (results.routes[0].legs[0]) {
+      setDistance(results.routes[0].legs[0].distance?.text || "");
+      setDuration(results.routes[0].legs[0].duration?.text || "");
+    }
+  };
 
-            try {
-              const service = new google.maps.places.PlacesService(
-                mapRef.current
-              );
-              const request: google.maps.places.PlaceSearchRequest = {
-                location: midpoint,
-                radius: 15000, // 15 km
-                type: "electric_vehicle_charging_station",
-              };
+  // Clear route function
+  const clearRoute = () => {
+    setDirectionsResponse(null);
+    setDistance("");
+    setDuration("");
 
-              service.nearbySearch(request, (results, status) => {
-                if (
-                  status === google.maps.places.PlacesServiceStatus.OK &&
-                  results
-                ) {
-                  setEvStations(results);
-                } else {
-                  console.warn(
-                    "No EV stations found or PlacesService error:",
-                    status
-                  );
-                  setEvStations([]);
-                }
-              });
-            } catch (error) {
-              console.error("Error searching for EV stations:", error);
-              setEvStations([]);
-            }
-          }
-        } else {
-          console.error("Directions request failed:", status);
-          setDirections(null);
-          setEvStations([]);
-        }
-      }
-    );
-  }, [points, isLoaded]);
+    if (originRef.current) originRef.current.value = "";
+    if (destiantionRef.current) destiantionRef.current.value = "";
+  };
 
-  // Reset everything
-  const resetPoints = useCallback(() => {
-    setPoints([]);
-    setDirections(null);
-    setEvStations([]);
+  // Callback for map load
+  const onLoad = useCallback((map: google.maps.Map) => {
+    setMap(map);
   }, []);
 
-  // If map fails to load, show an error message with retry button
-  if (loadError) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded p-4 text-center">
-        <p className="text-red-600 mb-2">{loadError}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="bg-blue-600 text-white px-4 py-2 rounded"
-        >
-          Retry Loading Map
-        </button>
-      </div>
-    );
-  }
+  // Callback for map unmount
+  const onUnmount = useCallback(() => {
+    setMap(null);
+  }, []);
 
-  // Show loading indicator when map is not loaded yet
+  // Handle map click to set markers
+  const handleMapClick = (event: google.maps.MapMouseEvent) => {
+    if (!event.latLng) return;
+
+    const lat = event.latLng.lat();
+    const lng = event.latLng.lng();
+
+    // Cycle through marker types
+    if (!houseMarker) {
+      setHouseMarker({ lat, lng });
+    } else if (!workplaceMarker) {
+      setWorkplaceMarker({ lat, lng });
+    } else if (!holidayMarker) {
+      setHolidayMarker({ lat, lng });
+    } else {
+      // Reset if all markers are set
+      setHouseMarker(null);
+      setWorkplaceMarker(null);
+      setHolidayMarker(null);
+    }
+  };
+
+  // Render loading state if map is not loaded
   if (!isLoaded) {
-    return (
-      <div className="flex justify-center items-center h-[400px] bg-gray-100 rounded">
-        <div className="text-center">
-          <div className="inline-block animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mb-2"></div>
-          <p>Loading Google Maps...</p>
-        </div>
-      </div>
-    );
+    return <div>Loading...</div>;
   }
 
   return (
-    <div className="relative">
-      <GoogleMap
-        mapContainerStyle={containerStyle}
-        center={center}
-        zoom={10}
-        onLoad={onMapLoad}
-        onClick={handleMapClick}
-      >
-        {points.map((point, index) => (
-          <Marker
-            key={index}
-            position={point}
-            label={index === 0 ? "House" : index === 1 ? "Work" : "Holiday"}
-          />
-        ))}
-
-        {directions && <DirectionsRenderer directions={directions} />}
-
-        {evStations.map((station, idx) => (
-          <Marker
-            key={`ev-${idx}`}
-            position={station.geometry?.location as google.maps.LatLng}
-            icon={{
-              url: "https://maps.google.com/mapfiles/kml/paddle/ltblu-circle.png",
-            }}
-          />
-        ))}
-      </GoogleMap>
-
-      <div className="mt-2 text-center">
-        <p className="text-sm text-gray-500">
-          {points.length === 0 && "Click on the map to set your home location"}
-          {points.length === 1 && "Now click to set your workplace location"}
-          {points.length === 2 &&
-            "Finally, click to set your holiday destination"}
-          {points.length === 3 &&
-            "All locations set! You can proceed or reset to try again."}
-        </p>
+    <div className="map-container">
+      <div className="route-inputs flex space-x-2 mb-4">
+        <input
+          type="text"
+          placeholder="Origin"
+          ref={originRef}
+          className="border p-2 flex-grow"
+        />
+        <input
+          type="text"
+          placeholder="Destination"
+          ref={destiantionRef}
+          className="border p-2 flex-grow"
+        />
+        <button
+          onClick={calculateRoute}
+          className="bg-blue-500 text-white px-4 py-2"
+        >
+          Calculate Route
+        </button>
+        <button
+          onClick={clearRoute}
+          className="bg-red-500 text-white px-4 py-2"
+        >
+          Clear
+        </button>
       </div>
 
-      {points.length > 0 && (
-        <button
-          onClick={resetPoints}
-          className="absolute top-2 right-2 bg-red-600 text-white px-3 py-1 rounded shadow"
-        >
-          Reset Points
-        </button>
-      )}
+      <GoogleMap
+        mapContainerStyle={containerStyle}
+        center={defaultCenter}
+        zoom={10}
+        onLoad={onLoad}
+        onUnmount={onUnmount}
+        onClick={handleMapClick}
+      >
+        {/* Render directions if available */}
+        {directionsResponse && (
+          <DirectionsRenderer
+            directions={directionsResponse}
+            options={{
+              polylineOptions: {
+                strokeColor: "#1E90FF",
+                strokeOpacity: 0.8,
+                strokeWeight: 6,
+              },
+            }}
+          />
+        )}
+
+        {/* Render markers */}
+        {houseMarker && (
+          <Marker
+            position={houseMarker}
+            title="House"
+            icon={{
+              url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+            }}
+          />
+        )}
+        {workplaceMarker && (
+          <Marker
+            position={workplaceMarker}
+            title="Workplace"
+            icon={{
+              url: "http://maps.google.com/mapfiles/ms/icons/green-dot.png",
+            }}
+          />
+        )}
+        {holidayMarker && (
+          <Marker
+            position={holidayMarker}
+            title="Holiday"
+            icon={{
+              url: "http://maps.google.com/mapfiles/ms/icons/red-dot.png",
+            }}
+          />
+        )}
+      </GoogleMap>
+
+      {/* Display route information */}
+      <div className="route-info mt-4">
+        {distance && <p>Distance: {distance}</p>}
+        {duration && <p>Duration: {duration}</p>}
+
+        {/* Display marker information */}
+        <div>
+          <p>Markers:</p>
+          {houseMarker && (
+            <p>
+              House: {houseMarker.lat}, {houseMarker.lng}
+            </p>
+          )}
+          {workplaceMarker && (
+            <p>
+              Workplace: {workplaceMarker.lat}, {workplaceMarker.lng}
+            </p>
+          )}
+          {holidayMarker && (
+            <p>
+              Holiday: {holidayMarker.lat}, {holidayMarker.lng}
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
