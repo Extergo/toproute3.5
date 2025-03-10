@@ -1,15 +1,17 @@
 // src/app/results/page.tsx
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   recommendVehicles,
   RecommendationResult,
 } from "@/utils/recommendVehicles";
 
-export default function ResultsPage() {
+// Separate component for search params logic
+function ResultsContent() {
   const searchParams = useSearchParams();
   const [recommendation, setRecommendation] =
     useState<RecommendationResult | null>(null);
@@ -255,5 +257,25 @@ export default function ResultsPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+// Wrap the content in a Suspense boundary
+export default function ResultsPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-100 to-green-100 p-6">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-gray-700">
+              Loading your vehicle recommendations...
+            </p>
+          </div>
+        </main>
+      }
+    >
+      <ResultsContent />
+    </Suspense>
   );
 }
