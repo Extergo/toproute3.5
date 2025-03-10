@@ -1,287 +1,257 @@
-// src/app/form/page.tsx
+// src/app/results/page.tsx
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useState, useEffect } from "react";
+import {
+  recommendVehicles,
+  RecommendationResult,
+} from "@/utils/recommendVehicles";
 
-// Use dynamic import with no SSR for Map component
-const Map = dynamic(() => import("../../components/Map"), { ssr: false });
+export default function ResultsPage() {
+  const searchParams = useSearchParams();
+  const [recommendation, setRecommendation] =
+    useState<RecommendationResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-export default function FormPage() {
-  const router = useRouter();
-
-  // User prefs with more detailed options
-  const [minSeats, setMinSeats] = useState<number>(5);
-  const [hasKids, setHasKids] = useState<boolean>(false);
-  const [trunkPreference, setTrunkPreference] = useState<boolean>(false);
-  const [preferredType, setPreferredType] = useState<string>("any");
-
-  // Loading state
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-
-  // Store the 3 locations
-  const [house, setHouse] = useState<{ lat: number; lng: number } | null>(null);
-  const [workplace, setWorkplace] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
-  const [holiday, setHoliday] = useState<{ lat: number; lng: number } | null>(
-    null
-  );
-
-  const [allLocationsSet, setAllLocationsSet] = useState<boolean>(false);
-
-  const [formMessage, setFormMessage] = useState<string | null>(null);
-
-  const handleLocationsSelect = (locations: {
-    house: { lat: number; lng: number };
-    workplace: { lat: number; lng: number };
-    holiday: { lat: number; lng: number };
-  }) => {
-    setHouse(locations.house);
-    setWorkplace(locations.workplace);
-    setHoliday(locations.holiday);
-    setAllLocationsSet(true);
-  };
-
-  const handleSubmit = () => {
-    setFormMessage(null);
-
-    if (!house || !workplace || !holiday) {
-      setFormMessage(
-        "Please set Home, Workplace, and Holiday points on the map"
-      );
-      return;
-    }
-
-    setIsLoading(true);
-
-    // Build query string for results
+  useEffect(() => {
     try {
-      const query = new URLSearchParams({
-        houseLat: house.lat.toString(),
-        houseLng: house.lng.toString(),
-        workplaceLat: workplace.lat.toString(),
-        workplaceLng: workplace.lng.toString(),
-        holidayLat: holiday.lat.toString(),
-        holidayLng: holiday.lng.toString(),
-        minSeats: minSeats.toString(),
-        hasKids: hasKids ? "1" : "0",
-        trunk: trunkPreference ? "1" : "0",
-        preferredType: preferredType,
+      // Extract parameters from URL
+      const houseLat = parseFloat(searchParams.get("houseLat") || "");
+      const houseLng = parseFloat(searchParams.get("houseLng") || "");
+      const workplaceLat = parseFloat(searchParams.get("workplaceLat") || "");
+      const workplaceLng = parseFloat(searchParams.get("workplaceLng") || "");
+      const holidayLat = parseFloat(searchParams.get("holidayLat") || "");
+      const holidayLng = parseFloat(searchParams.get("holidayLng") || "");
+      const minSeats = parseInt(searchParams.get("minSeats") || "5", 10);
+      const hasKids = searchParams.get("hasKids") === "1";
+      const trunkPreference = searchParams.get("trunk") === "1";
+      const preferredType = searchParams.get("preferredType") || "any";
+
+      // Validate inputs
+      if (
+        isNaN(houseLat) ||
+        isNaN(houseLng) ||
+        isNaN(workplaceLat) ||
+        isNaN(workplaceLng) ||
+        isNaN(holidayLat) ||
+        isNaN(holidayLng)
+      ) {
+        throw new Error("Invalid location coordinates");
+      }
+
+      // Generate recommendation
+      const result = recommendVehicles({
+        house: { lat: houseLat, lng: houseLng },
+        workplace: { lat: workplaceLat, lng: workplaceLng },
+        holiday: { lat: holidayLat, lng: holidayLng },
+        minSeats,
+        habits: {
+          hasKids,
+          trunkPreference,
+        },
+        preferredType,
       });
 
-      router.push(`/results?${query.toString()}`);
+      setRecommendation(result);
     } catch (err) {
-      setFormMessage(
-        "An error occurred while submitting your preferences. Please try again."
+      setError(
+        err instanceof Error ? err.message : "An unexpected error occurred"
       );
-      setIsLoading(false);
+    }
+  }, [searchParams]);
+
+  // Carbon rating description
+  const getCarbonRatingDescription = (rating: number) => {
+    switch (rating) {
+      case 5:
+        return "Excellent (Near Zero Emissions)";
+      case 4:
+        return "Very Good (Low Carbon Footprint)";
+      case 3:
+        return "Good (Moderate Environmental Impact)";
+      case 2:
+        return "Fair (Higher Carbon Emissions)";
+      case 1:
+        return "Poor (High Carbon Footprint)";
+      default:
+        return "Unknown";
     }
   };
 
+  if (error) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-100 to-green-100 p-6">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">
+            Recommendation Error
+          </h1>
+          <p className="text-gray-700 mb-6">{error}</p>
+          <Link
+            href="/form"
+            className="inline-block bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+          >
+            Go Back to Form
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  if (!recommendation) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-100 to-green-100 p-6">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-700">
+            Generating your vehicle recommendations...
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-100 to-green-100 p-6">
-      <div className="max-w-4xl w-full bg-white rounded-lg shadow-lg p-8">
+    <main className="min-h-screen bg-gradient-to-r from-blue-100 to-green-100 p-6">
+      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-8">
         <Link
-          href="/"
+          href="/form"
           className="inline-block text-blue-600 hover:text-blue-800 mb-6"
         >
-          &larr; Back to Home
+          &larr; Back to Form
         </Link>
 
         <h1 className="text-3xl font-bold text-center mb-6">
-          Find Your Ideal Vehicle
+          Your Vehicle Recommendations
         </h1>
 
-        <p className="text-gray-600 text-center mb-8">
-          Tell us about your needs and locations, and we&apos;ll recommend the
-          perfect vehicle for you.
-        </p>
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* Primary Recommendation */}
+          <div className="bg-blue-50 p-6 rounded-lg">
+            <h2 className="text-2xl font-semibold mb-4 text-blue-700">
+              Primary Recommendation
+            </h2>
+            <div className="mb-4">
+              <h3 className="text-xl font-medium">
+                {recommendation.primary.name}
+              </h3>
+              <p className="text-gray-600">
+                {recommendation.primary.type.toUpperCase()}
+              </p>
+            </div>
 
-        {formMessage && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded text-red-600">
-            {formMessage}
+            <div className="space-y-2 mb-4">
+              <p>
+                <strong>Seats:</strong> {recommendation.primary.seats}
+              </p>
+              <p>
+                <strong>Range:</strong> {recommendation.primary.range} km
+              </p>
+              <p>
+                <strong>Trunk Space:</strong> {recommendation.primary.trunk}{" "}
+                liters
+              </p>
+              <p>
+                <strong>Efficiency:</strong>{" "}
+                {recommendation.primary.type === "electric"
+                  ? `${recommendation.primary.efficiency} km/kWh`
+                  : `${recommendation.primary.efficiency} km/L`}
+              </p>
+              <p>
+                <strong>Base Price:</strong> ${recommendation.primary.price},000
+              </p>
+            </div>
+
+            <div className="bg-blue-100 p-4 rounded">
+              <h4 className="font-semibold mb-2">Carbon Impact</h4>
+              <p>
+                Rating:{" "}
+                {getCarbonRatingDescription(recommendation.carbonRating)}
+              </p>
+            </div>
           </div>
-        )}
 
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">1. Your Preferences</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-gray-700 mb-2 font-medium">
-                Minimum Seats
-              </label>
-              <select
-                value={minSeats}
-                onChange={(e) => setMinSeats(parseInt(e.target.value, 10))}
-                className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-300 focus:border-blue-500 outline-none transition-all"
-              >
-                {[2, 3, 4, 5, 6, 7, 8].map((num) => (
-                  <option key={num} value={num}>
-                    {num} seats
-                  </option>
-                ))}
-              </select>
-              <p className="text-sm text-gray-500 mt-1">
-                Select the minimum number of seats you need
+          {/* Runner-Up Recommendation */}
+          <div className="bg-green-50 p-6 rounded-lg">
+            <h2 className="text-2xl font-semibold mb-4 text-green-700">
+              Runner-Up Option
+            </h2>
+            <div className="mb-4">
+              <h3 className="text-xl font-medium">
+                {recommendation.runnerUp.name}
+              </h3>
+              <p className="text-gray-600">
+                {recommendation.runnerUp.type.toUpperCase()}
               </p>
             </div>
 
-            <div>
-              <label className="block text-gray-700 mb-2 font-medium">
-                Vehicle Type Preference
-              </label>
-              <select
-                value={preferredType}
-                onChange={(e) => setPreferredType(e.target.value)}
-                className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-300 focus:border-blue-500 outline-none transition-all"
-              >
-                <option value="any">Any Type</option>
-                <option value="electric">Electric</option>
-                <option value="hybrid">Hybrid</option>
-                <option value="suv">SUV</option>
-                <option value="sedan">Sedan</option>
-                <option value="minivan">Minivan</option>
-                <option value="compact">Compact</option>
-              </select>
-              <p className="text-sm text-gray-500 mt-1">
-                Optional: Select your preferred vehicle type
+            <div className="space-y-2 mb-4">
+              <p>
+                <strong>Seats:</strong> {recommendation.runnerUp.seats}
+              </p>
+              <p>
+                <strong>Range:</strong> {recommendation.runnerUp.range} km
+              </p>
+              <p>
+                <strong>Trunk Space:</strong> {recommendation.runnerUp.trunk}{" "}
+                liters
+              </p>
+              <p>
+                <strong>Efficiency:</strong>{" "}
+                {recommendation.runnerUp.type === "electric"
+                  ? `${recommendation.runnerUp.efficiency} km/kWh`
+                  : `${recommendation.runnerUp.efficiency} km/L`}
+              </p>
+              <p>
+                <strong>Base Price:</strong> ${recommendation.runnerUp.price}
+                ,000
               </p>
             </div>
 
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="hasKids"
-                checked={hasKids}
-                onChange={(e) => setHasKids(e.target.checked)}
-                className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label htmlFor="hasKids" className="ml-2 block text-gray-700">
-                I have children
-              </label>
-              <div className="ml-2 group relative">
-                <span className="text-gray-400 cursor-help">ⓘ</span>
-                <div className="hidden group-hover:block absolute left-0 bottom-full mb-2 p-2 bg-gray-800 text-white text-xs rounded shadow-lg w-48">
-                  We&apos;ll prioritize vehicles with higher safety ratings and
-                  family-friendly features
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="trunkSpace"
-                checked={trunkPreference}
-                onChange={(e) => setTrunkPreference(e.target.checked)}
-                className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label htmlFor="trunkSpace" className="ml-2 block text-gray-700">
-                I need significant trunk space
-              </label>
-              <div className="ml-2 group relative">
-                <span className="text-gray-400 cursor-help">ⓘ</span>
-                <div className="hidden group-hover:block absolute left-0 bottom-full mb-2 p-2 bg-gray-800 text-white text-xs rounded shadow-lg w-48">
-                  We&apos;ll prioritize vehicles with larger cargo capacity
-                </div>
-              </div>
+            <div className="bg-green-100 p-4 rounded">
+              <h4 className="font-semibold mb-2">Trip Details</h4>
+              <p>
+                <strong>Commute Distance:</strong>{" "}
+                {recommendation.metrics.commuteDistance.toFixed(1)} km
+              </p>
+              <p>
+                <strong>Holiday Distance:</strong>{" "}
+                {recommendation.metrics.holidayDistance.toFixed(1)} km
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">2. Your Locations</h2>
-          <p className="mb-4 text-gray-600">
-            Click on the map to set your home, workplace, and holiday
-            destination in that order. We&apos;ll use these locations to
-            calculate your typical commute and travel needs.
-          </p>
-
-          <div className="bg-gray-50 p-4 rounded mb-4">
-            <ul className="flex flex-col sm:flex-row sm:justify-between text-sm">
-              <li
-                className={`flex items-center mb-2 sm:mb-0 ${
-                  house ? "text-green-600" : "text-gray-500"
-                }`}
-              >
-                <span className="w-5 h-5 inline-block bg-blue-500 text-white rounded-full text-xs flex items-center justify-center mr-2">
-                  1
-                </span>
-                Home: {house ? "Set ✓" : "Click on map"}
-              </li>
-              <li
-                className={`flex items-center mb-2 sm:mb-0 ${
-                  workplace ? "text-green-600" : "text-gray-500"
-                }`}
-              >
-                <span className="w-5 h-5 inline-block bg-blue-500 text-white rounded-full text-xs flex items-center justify-center mr-2">
-                  2
-                </span>
-                Workplace: {workplace ? "Set ✓" : "Click on map"}
-              </li>
-              <li
-                className={`flex items-center ${
-                  holiday ? "text-green-600" : "text-gray-500"
-                }`}
-              >
-                <span className="w-5 h-5 inline-block bg-blue-500 text-white rounded-full text-xs flex items-center justify-center mr-2">
-                  3
-                </span>
-                Holiday: {holiday ? "Set ✓" : "Click on map"}
-              </li>
-            </ul>
-          </div>
-
-          <Map onLocationsSelect={handleLocationsSelect} />
+        {/* Recommendation Summary */}
+        <div className="mt-8 bg-gray-50 p-6 rounded-lg">
+          <h3 className="text-xl font-semibold mb-4">Recommendation Summary</h3>
+          <p className="text-gray-700">{recommendation.summary}</p>
         </div>
 
-        <div className="text-center mt-8">
-          <button
-            onClick={handleSubmit}
-            disabled={isLoading || !allLocationsSet}
-            className={`px-8 py-3 rounded-md text-white font-medium transition-all ${
-              allLocationsSet
-                ? "bg-blue-600 hover:bg-blue-700"
-                : "bg-gray-400 cursor-not-allowed"
-            }`}
-          >
-            {isLoading ? (
-              <span className="flex items-center justify-center">
-                <svg
-                  className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                Processing...
-              </span>
-            ) : (
-              "Get Recommendation"
-            )}
-          </button>
-          <p className="mt-2 text-sm text-gray-500">
-            {allLocationsSet
-              ? "Ready to find your perfect vehicle!"
-              : "Please select all three locations on the map"}
-          </p>
+        {/* Estimated Costs */}
+        <div className="mt-8 bg-gray-100 p-6 rounded-lg">
+          <h3 className="text-xl font-semibold mb-4">Cost Breakdown</h3>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <h4 className="font-medium mb-2">
+                {recommendation.primary.name} Estimated Cost
+              </h4>
+              <p>
+                Monthly Commute Fuel Cost: $
+                {recommendation.priceBreakdown.primary.toFixed(2)}
+              </p>
+            </div>
+            <div>
+              <h4 className="font-medium mb-2">
+                {recommendation.runnerUp.name} Estimated Cost
+              </h4>
+              <p>
+                Monthly Commute Fuel Cost: $
+                {recommendation.priceBreakdown.runnerUp.toFixed(2)}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </main>
