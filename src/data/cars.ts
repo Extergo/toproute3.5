@@ -229,6 +229,17 @@ export const cars: Car[] = [
     terrain: { city: 7, highway: 8, offroad: 6 },
   },
   {
+    name: "Honda Pilot",
+    type: "suv",
+    range: 700,
+    seats: 8,
+    trunk: 525,
+    efficiency: 10.7, // km/L
+    familyFriendly: 9,
+    price: 37,
+    terrain: { city: 7, highway: 8, offroad: 6 },
+  },
+  {
     name: "Jeep Grand Cherokee",
     type: "suv",
     range: 680,

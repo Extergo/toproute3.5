@@ -165,12 +165,27 @@ function ResultsContent() {
               </p>
             </div>
 
-            <div className="bg-blue-100 p-4 rounded">
-              <h4 className="font-semibold mb-2">Carbon Impact</h4>
-              <p>
-                Rating:{" "}
-                {getCarbonRatingDescription(recommendation.carbonRating)}
-              </p>
+            {/* Updated to include both info sections */}
+            <div className="space-y-4">
+              <div className="bg-blue-100 p-4 rounded">
+                <h4 className="font-semibold mb-2">Carbon Impact</h4>
+                <p>
+                  Rating:{" "}
+                  {getCarbonRatingDescription(recommendation.carbonRating)}
+                </p>
+              </div>
+
+              <div className="bg-blue-100 p-4 rounded">
+                <h4 className="font-semibold mb-2">Trip Details</h4>
+                <p>
+                  <strong>Commute Distance:</strong>{" "}
+                  {recommendation.metrics.commuteDistance.toFixed(1)} km
+                </p>
+                <p>
+                  <strong>Holiday Distance:</strong>{" "}
+                  {recommendation.metrics.holidayDistance.toFixed(1)} km
+                </p>
+              </div>
             </div>
           </div>
 
@@ -211,16 +226,33 @@ function ResultsContent() {
               </p>
             </div>
 
-            <div className="bg-green-100 p-4 rounded">
-              <h4 className="font-semibold mb-2">Trip Details</h4>
-              <p>
-                <strong>Commute Distance:</strong>{" "}
-                {recommendation.metrics.commuteDistance.toFixed(1)} km
-              </p>
-              <p>
-                <strong>Holiday Distance:</strong>{" "}
-                {recommendation.metrics.holidayDistance.toFixed(1)} km
-              </p>
+            {/* Updated to include both info sections */}
+            <div className="space-y-4">
+              <div className="bg-green-100 p-4 rounded">
+                <h4 className="font-semibold mb-2">Carbon Impact</h4>
+                <p>
+                  Rating:{" "}
+                  {recommendation.runnerUp.type === "electric"
+                    ? "Excellent (Near Zero Emissions)"
+                    : recommendation.runnerUp.type === "hybrid"
+                    ? "Good (Moderate Environmental Impact)"
+                    : recommendation.runnerUp.efficiency > 14
+                    ? "Fair (Higher Carbon Emissions)"
+                    : "Poor (High Carbon Footprint)"}
+                </p>
+              </div>
+
+              <div className="bg-green-100 p-4 rounded">
+                <h4 className="font-semibold mb-2">Trip Details</h4>
+                <p>
+                  <strong>Commute Distance:</strong>{" "}
+                  {recommendation.metrics.commuteDistance.toFixed(1)} km
+                </p>
+                <p>
+                  <strong>Holiday Distance:</strong>{" "}
+                  {recommendation.metrics.holidayDistance.toFixed(1)} km
+                </p>
+              </div>
             </div>
           </div>
         </div>

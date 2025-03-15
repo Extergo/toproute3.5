@@ -162,10 +162,57 @@ export function recommendVehicles(
   // Sort by score descending
   scoredCars.sort((a, b) => b.score - a.score);
 
-  // Get the top recommendations
+  // FIX 1: Ensure we don't have duplicate recommendations
+  // Get the top recommendation
   const primary = scoredCars[0].car;
-  const runnerUp =
-    scoredCars.length > 1 ? scoredCars[1].car : scoredCars[0].car;
+
+  // Find the best runner-up that isn't the same as the primary
+  let runnerUp: Car;
+
+  // Look for a different car for runner-up
+  const differentOptions = scoredCars.filter(
+    (item) => item.car.name !== primary.name
+  );
+
+  if (differentOptions.length > 0) {
+    // We have a different option to use as runner-up
+    runnerUp = differentOptions[0].car;
+  } else {
+    // No different option available, pick one with a different type if possible
+    const differentTypeOptions = cars.filter(
+      (car) => car.seats >= input.minSeats && car.type !== primary.type
+    );
+
+    if (differentTypeOptions.length > 0) {
+      // Sort by relevance to user's needs and pick the top one
+      const scoredAlternatives = differentTypeOptions.map((car) => {
+        const seatScore = Math.min(car.seats / input.minSeats, 1.5) * 5;
+        const trunkScore = input.habits.trunkPreference
+          ? (car.trunk / 800) * 5
+          : 0;
+        const familyScore = input.habits.hasKids
+          ? (car.familyFriendly / 10) * 5
+          : 0;
+
+        return {
+          car,
+          score: (seatScore + trunkScore + familyScore) / 3,
+        };
+      });
+
+      scoredAlternatives.sort((a, b) => b.score - a.score);
+      runnerUp = scoredAlternatives[0].car;
+    } else {
+      // If all else fails, use a different car from the database
+      const backupOptions = cars.filter((car) => car.name !== primary.name);
+      if (backupOptions.length > 0) {
+        runnerUp = backupOptions[0];
+      } else {
+        // Absolute last resort - should never reach here unless only one car in database
+        runnerUp = primary;
+      }
+    }
+  }
 
   // Calculate cost estimates more accurately
   const estimateFuelCost = (car: Car, distance: number): number => {
@@ -300,12 +347,12 @@ export function recommendVehicles(
   return {
     primary,
     runnerUp,
-    summary,
     priceBreakdown: {
       primary: primaryCost,
       runnerUp: runnerUpCost,
     },
     carbonRating,
+    summary,
     metrics: {
       commuteDistance,
       holidayDistance,
